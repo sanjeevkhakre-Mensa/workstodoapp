@@ -1,5 +1,5 @@
 /* ============================================================
-   WorkToDo — Task list: filtering, rows, row actions
+   WorkToDo — Task list: filtering, sorting, rows, row actions
    ============================================================ */
 
 const ROUTE_TITLES = {
@@ -8,6 +8,14 @@ const ROUTE_TITLES = {
   upcoming: "Upcoming",
   overdue: "Overdue",
   completed: "Completed",
+};
+
+const ROUTE_EMPTY_COPY = {
+  dashboard: { msg: "No tasks yet — add your first one.", icon: "inbox" },
+  today: { msg: "Nothing due today. Enjoy the calm.", icon: "today" },
+  upcoming: { msg: "Nothing on the horizon yet.", icon: "upcoming" },
+  overdue: { msg: "Nothing overdue — you're on top of things.", icon: "completed" },
+  completed: { msg: "No completed tasks yet.", icon: "completed" },
 };
 
 function filterTasksForRoute(tasks, route) {
@@ -42,7 +50,22 @@ function filterTasksForRoute(tasks, route) {
     list = list.filter((t) => t.status === AppState.statusFilter);
   }
 
-  list.sort((a, b) => (a.dueDate || "9999").localeCompare(b.dueDate || "9999"));
+  const PRIORITY_RANK = { High: 0, Medium: 1, Low: 2 };
+  switch (AppState.sort) {
+    case "priority":
+      list.sort((a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]);
+      break;
+    case "title":
+      list.sort((a, b) => a.title.localeCompare(b.title));
+      break;
+    case "created":
+      list.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+      break;
+    case "dueDate":
+    default:
+      list.sort((a, b) => (a.dueDate || "9999").localeCompare(b.dueDate || "9999"));
+      break;
+  }
   return list;
 }
 
@@ -50,7 +73,7 @@ function toolbarHtml() {
   return `
     <div class="toolbar">
       <div class="select-box">
-        <select onchange="setPriorityFilter(this.value)">
+        <select onchange="setPriorityFilter(this.value)" aria-label="Filter by priority">
           <option value="all" ${AppState.priorityFilter === "all" ? "selected" : ""}>All Priority</option>
           <option value="High" ${AppState.priorityFilter === "High" ? "selected" : ""}>High</option>
           <option value="Medium" ${AppState.priorityFilter === "Medium" ? "selected" : ""}>Medium</option>
@@ -58,18 +81,29 @@ function toolbarHtml() {
         </select>
       </div>
       <div class="select-box">
-        <select onchange="setStatusFilter(this.value)">
+        <select onchange="setStatusFilter(this.value)" aria-label="Filter by status">
           <option value="all" ${AppState.statusFilter === "all" ? "selected" : ""}>All Status</option>
           <option value="Pending" ${AppState.statusFilter === "Pending" ? "selected" : ""}>Pending</option>
           <option value="Completed" ${AppState.statusFilter === "Completed" ? "selected" : ""}>Completed</option>
         </select>
       </div>
+      <div class="select-box" style="margin-left:auto">
+        <select onchange="setSort(this.value)" aria-label="Sort tasks">
+          <option value="dueDate" ${AppState.sort === "dueDate" ? "selected" : ""}>Sort: Due Date</option>
+          <option value="priority" ${AppState.sort === "priority" ? "selected" : ""}>Sort: Priority</option>
+          <option value="title" ${AppState.sort === "title" ? "selected" : ""}>Sort: Title A–Z</option>
+          <option value="created" ${AppState.sort === "created" ? "selected" : ""}>Sort: Newest first</option>
+        </select>
+      </div>
     </div>`;
 }
 
-function taskListHtml(list) {
+function taskListHtml(list, route) {
   if (!list.length) {
-    return `<div class="task-card">${emptyStateHtml("No tasks here.", "Add Task", "openTaskModal()")}</div>`;
+    const copy = AppState.search.trim()
+      ? { msg: `No tasks match "${AppState.search.trim()}".`, icon: "search" }
+      : ROUTE_EMPTY_COPY[route] || ROUTE_EMPTY_COPY.dashboard;
+    return `<div class="task-card">${emptyStateHtml(copy.msg, copy.icon, "Add Task", "openTaskModal()")}</div>`;
   }
   return `<div class="task-card">${list.map(taskRowHtml).join("")}</div>`;
 }
@@ -78,31 +112,35 @@ function taskRowHtml(t) {
   const eff = computeEffectiveStatus(t);
   const done = t.status === "Completed";
   const timeStr = t.dueTime ? fmtTime12(t.dueTime) : "";
+  const checklist = t.checklist || [];
+  const doneCount = checklist.filter((c) => c.done).length;
+
   return `
-    <div class="task-row">
-      <div class="task-check ${done ? "done" : ""}" onclick="handleToggleComplete('${t.id}')">${done ? icon("check") : ""}</div>
+    <div class="task-row" onclick="openTaskDrawer('${t.id}')">
+      <div class="task-check ${done ? "done" : ""}" onclick="event.stopPropagation(); handleToggleComplete('${t.id}')">${done ? icon("check") : ""}</div>
       <div class="task-main">
         <div class="task-title ${done ? "done" : ""}">${escapeHtml(t.title)}</div>
         ${t.description ? `<div class="task-desc">${escapeHtml(t.description)}</div>` : ""}
         <div class="task-meta ${eff === "Overdue" ? "overdue" : ""}">
-          ${fmtDateHuman(t.dueDate)}${timeStr ? " · " + timeStr : ""}
+          <span>${fmtDateHuman(t.dueDate)}${timeStr ? " · " + timeStr : ""}</span>
+          ${checklist.length ? `<span class="task-subtask-count">${icon("checklist")} ${doneCount}/${checklist.length}</span>` : ""}
         </div>
       </div>
       <div class="task-tags">
         <span class="badge ${priorityBadgeClass(t.priority)}">${escapeHtml(t.priority)}</span>
         <span class="badge ${statusBadgeClass(eff)}">${escapeHtml(eff)}</span>
       </div>
-      <div class="row-actions">
-        <div class="icon-btn xs" data-tooltip="Edit" onclick="openTaskModal('${t.id}')">${icon("edit")}</div>
+      <div class="row-actions" onclick="event.stopPropagation()">
+        <div class="icon-btn xs" data-tooltip="Edit" onclick="openTaskDrawer('${t.id}')">${icon("edit")}</div>
         <div class="icon-btn xs" data-tooltip="Delete" onclick="handleDeleteTask('${t.id}')">${icon("trash")}</div>
       </div>
     </div>`;
 }
 
-function emptyStateHtml(msg, btnLabel, onclickAttr) {
+function emptyStateHtml(msg, iconName, btnLabel, onclickAttr) {
   return `
     <div class="empty-state">
-      ${icon("inbox")}
+      ${icon(iconName || "inbox")}
       <div class="msg">${escapeHtml(msg)}</div>
       ${btnLabel ? `<button class="btn btn-primary btn-sm" onclick="${onclickAttr}">${icon("plus")} ${escapeHtml(btnLabel)}</button>` : ""}
     </div>`;
@@ -118,12 +156,34 @@ async function handleToggleComplete(id) {
   }
 }
 
+function setSort(val) {
+  AppState.sort = val;
+  rerenderCurrentPage(true);
+}
+
 async function handleDeleteTask(id) {
-  if (!confirm("Delete this task? This cannot be undone.")) return;
+  const task = Store.getTask(id);
+  if (!task) return;
+  const ok = await confirmDialog({
+    title: "Delete this task?",
+    message: `"${task.title}" will be removed. You can undo this right after.`,
+    confirmLabel: "Delete",
+    danger: true,
+  });
+  if (!ok) return;
   try {
-    await Store.deleteTask(id);
-    showToast("Task deleted", "success");
-    rerenderCurrentPage(true); // keep the user's scroll position
+    const result = await Store.deleteTask(id);
+    rerenderCurrentPage(true);
+    if (result) {
+      showToast("Task deleted", "success", {
+        label: "Undo",
+        onClick: async () => {
+          await Store.restoreTask(result.task, result.index);
+          rerenderCurrentPage(true);
+          showToast("Task restored", "success");
+        },
+      });
+    }
   } catch (e) {
     showToast(e.message || "Failed to delete task", "error");
   }

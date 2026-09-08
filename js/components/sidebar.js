@@ -10,6 +10,8 @@ const NAV_ITEMS = [
   { key: "completed", label: "Completed", icon: "completed" },
 ];
 
+const MOBILE_NAV_ITEMS = ["dashboard", "today", "upcoming", "completed"];
+
 function computeNavCounts(tasks) {
   const today = todayYmd();
   return {
@@ -35,6 +37,9 @@ function sidebarHtml(currentRoute, tasks) {
           return `<div class="nav-link ${active ? "active" : ""}" onclick="navigate('${item.key}')">${icon(item.icon)} ${item.label} ${count ? `<span class="count">${count}</span>` : ""}</div>`;
         }).join("")}
       </div>
+      <div class="sidebar-hint">
+        <kbd>Ctrl</kbd><kbd>K</kbd> <span>to search</span>
+      </div>
     </aside>
   `;
 }
@@ -43,13 +48,26 @@ function topbarHtml() {
   return `
     <div class="topbar">
       <div class="hamburger" onclick="toggleMobileSidebar()">${icon("menu")}</div>
-      <div class="topbar-search">
+      <button type="button" class="topbar-search" onclick="openCommandPalette()">
         ${icon("search")}
-        <input type="text" placeholder="Search tasks..." value="${escapeHtml(AppState.search)}" oninput="setSearch(this.value)" />
-      </div>
+        <span>Search tasks…</span>
+        <kbd class="topbar-kbd">${icon("command")}K</kbd>
+      </button>
       <div class="icon-btn" onclick="toggleTheme()"><span id="themeToggleIcon"></span></div>
     </div>
   `;
+}
+
+function mobileNavHtml(currentRoute) {
+  return `
+    <nav class="mobile-nav">
+      ${MOBILE_NAV_ITEMS.map((key) => {
+        const item = NAV_ITEMS.find((n) => n.key === key);
+        const active = currentRoute === key;
+        return `<a class="${active ? "active" : ""}" onclick="navigate('${key}')">${icon(item.icon)}<span>${item.label}</span></a>`;
+      }).join("")}
+      <a class="mobile-nav-fab" onclick="openTaskModal()">${icon("plus")}</a>
+    </nav>`;
 }
 
 function toggleMobileSidebar() {

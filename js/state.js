@@ -28,7 +28,11 @@ function writeTasksToStorage(tasks) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
 }
 
-const TASK_FIELDS = ["title", "description", "dueDate", "dueTime", "priority", "status"];
+const TASK_FIELDS = ["title", "description", "dueDate", "dueTime", "priority", "status", "checklist"];
+
+function genChecklistId() {
+  return "c_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6);
+}
 
 const Store = {
   tasks: [],
@@ -58,6 +62,7 @@ const Store = {
       dueTime: "",
       priority: "Medium",
       status: "Pending",
+      checklist: [],
       createdAt: new Date().toISOString(),
     };
     TASK_FIELDS.forEach((f) => {
@@ -82,14 +87,51 @@ const Store = {
   },
 
   async deleteTask(id) {
-    this.tasks = this.tasks.filter((t) => t.id !== id);
+    const index = this.tasks.findIndex((t) => t.id === id);
+    if (index === -1) return null;
+    const [removed] = this.tasks.splice(index, 1);
     writeTasksToStorage(this.tasks);
+    return { task: removed, index };
+  },
+
+  // Undo for deleteTask — reinserts at the same position so list order feels stable.
+  async restoreTask(task, index) {
+    const at = Math.min(index, this.tasks.length);
+    this.tasks.splice(at, 0, task);
+    writeTasksToStorage(this.tasks);
+    return task;
   },
 
   async toggleComplete(id) {
     const task = this.getTask(id);
     if (!task) throw new Error("Task not found");
     task.status = task.status === "Completed" ? "Pending" : "Completed";
+    writeTasksToStorage(this.tasks);
+    return task;
+  },
+
+  async addChecklistItem(taskId, text) {
+    const task = this.getTask(taskId);
+    if (!task) throw new Error("Task not found");
+    if (!task.checklist) task.checklist = [];
+    task.checklist.push({ id: genChecklistId(), text: String(text).trim(), done: false });
+    writeTasksToStorage(this.tasks);
+    return task;
+  },
+
+  async toggleChecklistItem(taskId, itemId) {
+    const task = this.getTask(taskId);
+    if (!task) throw new Error("Task not found");
+    const item = (task.checklist || []).find((c) => c.id === itemId);
+    if (item) item.done = !item.done;
+    writeTasksToStorage(this.tasks);
+    return task;
+  },
+
+  async deleteChecklistItem(taskId, itemId) {
+    const task = this.getTask(taskId);
+    if (!task) throw new Error("Task not found");
+    task.checklist = (task.checklist || []).filter((c) => c.id !== itemId);
     writeTasksToStorage(this.tasks);
     return task;
   },

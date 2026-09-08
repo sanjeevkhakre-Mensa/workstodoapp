@@ -1,11 +1,14 @@
 /* ============================================================
-   WorkToDo — Add / Edit Task modal
+   WorkToDo — Add Task modal (full-detail creation)
+
+   Editing an existing task happens in the task drawer (js/components/
+   taskDrawer.js) instead — one edit surface, not two. This modal is
+   create-only: the fast path for capturing a task with more than just
+   a title (due date/time, priority) without leaving the current page.
    ============================================================ */
 
-function openTaskModal(taskId) {
-  const editing = !!taskId;
-  const task = editing ? Store.getTask(taskId) : null;
-  const t = task || { title: "", description: "", dueDate: todayYmd(), dueTime: "", priority: "Medium", status: "Pending" };
+function openTaskModal() {
+  const t = { title: "", dueDate: "", dueTime: "", priority: "Medium" };
 
   const overlay = document.createElement("div");
   overlay.className = "overlay";
@@ -15,7 +18,7 @@ function openTaskModal(taskId) {
   overlay.innerHTML = `
     <div class="modal" onclick="event.stopPropagation()">
       <div class="modal-header">
-        <h3>${editing ? "Edit Task" : "Add Task"}</h3>
+        <h3>Add Task</h3>
         <div class="icon-btn xs" onclick="closeTaskModal()">${icon("x")}</div>
       </div>
       <div class="modal-body">
@@ -24,17 +27,17 @@ function openTaskModal(taskId) {
           <input type="text" id="f_title" placeholder="e.g. Send weekly report" value="${escapeHtml(t.title)}" autofocus />
         </div>
         <div class="form-field">
-          <label>Description (optional)</label>
-          <textarea id="f_description" placeholder="Add more detail">${escapeHtml(t.description || "")}</textarea>
+          <label>Notes (optional)</label>
+          <textarea id="f_description" placeholder="Add more detail"></textarea>
         </div>
         <div class="form-grid">
           <div class="form-field">
             <label>Due Date</label>
-            <input type="date" id="f_dueDate" value="${t.dueDate || ""}" />
+            <input type="date" id="f_dueDate" value="${t.dueDate}" />
           </div>
           <div class="form-field">
             <label>Due Time (optional)</label>
-            <input type="time" id="f_dueTime" value="${t.dueTime || ""}" />
+            <input type="time" id="f_dueTime" value="${t.dueTime}" />
           </div>
         </div>
         <div class="form-field">
@@ -45,21 +48,10 @@ function openTaskModal(taskId) {
               .join("")}
           </div>
         </div>
-        ${
-          editing
-            ? `<div class="form-field">
-                <label>Status</label>
-                <select id="f_status">
-                  <option value="Pending" ${t.status === "Pending" ? "selected" : ""}>Pending</option>
-                  <option value="Completed" ${t.status === "Completed" ? "selected" : ""}>Completed</option>
-                </select>
-              </div>`
-            : ""
-        }
       </div>
       <div class="modal-footer">
         <button class="btn btn-ghost" onclick="closeTaskModal()">Cancel</button>
-        <button class="btn btn-primary" onclick="submitTaskModal(${editing ? `'${taskId}'` : "null"})">${editing ? "Save Changes" : "Add Task"}</button>
+        <button class="btn btn-primary" onclick="submitTaskModal()">Add Task</button>
       </div>
     </div>
   `;
@@ -90,7 +82,7 @@ function closeTaskModal() {
   document.removeEventListener("keydown", modalEscHandler);
 }
 
-async function submitTaskModal(taskId) {
+async function submitTaskModal() {
   const title = document.getElementById("f_title").value.trim();
   if (!title) {
     showToast("Task name is required", "error");
@@ -105,22 +97,15 @@ async function submitTaskModal(taskId) {
     dueTime: document.getElementById("f_dueTime").value,
     priority: getSelectedPriority(),
   };
-  const statusField = document.getElementById("f_status");
-  if (statusField) patch.status = statusField.value;
 
   const saveBtn = document.querySelector("#taskModalOverlay .modal-footer .btn-primary");
   if (saveBtn) saveBtn.disabled = true;
 
   try {
-    if (taskId) {
-      await Store.updateTask(taskId, patch);
-      showToast("Task updated", "success");
-    } else {
-      await Store.addTask(patch);
-      showToast("Task added", "success");
-    }
+    await Store.addTask(patch);
+    showToast("Task added", "success");
     closeTaskModal();
-    rerenderCurrentPage(true); // keep the user's scroll position instead of jumping to the top
+    rerenderCurrentPage(true);
   } catch (e) {
     showToast(e.message || "Failed to save task", "error");
     if (saveBtn) saveBtn.disabled = false;

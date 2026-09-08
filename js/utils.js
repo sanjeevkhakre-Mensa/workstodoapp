@@ -18,6 +18,11 @@ const ICONS = {
   sun: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>`,
   moon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg>`,
   inbox: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>`,
+  checklist: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>`,
+  flag: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22V15"/></svg>`,
+  command: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3"/></svg>`,
+  sparkle: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg>`,
+  arrowRight: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>`,
 };
 
 function icon(name) {
@@ -82,8 +87,10 @@ function fmtTime12(hhmm) {
   return `${h12}:${String(m).padStart(2, "0")} ${period}`;
 }
 
-/* ---------- Toasts ---------- */
-function showToast(message, type) {
+/* ---------- Toasts ----------
+   `action` is optional: { label, onClick } renders a button (e.g. "Undo") inside the
+   toast. Its own timer is longer, since a decision takes more than a moment to make. */
+function showToast(message, type, action) {
   let wrap = document.querySelector(".toast-wrap");
   if (!wrap) {
     wrap = document.createElement("div");
@@ -92,13 +99,60 @@ function showToast(message, type) {
   }
   const el = document.createElement("div");
   el.className = "toast" + (type ? " " + type : "");
-  el.innerHTML = `${type === "success" ? icon("check") : ""}<span>${escapeHtml(message)}</span>`;
+  el.innerHTML = `
+    ${type === "success" ? icon("check") : ""}
+    <span>${escapeHtml(message)}</span>
+    ${action ? `<button type="button" class="toast-action">${escapeHtml(action.label)}</button>` : ""}
+  `;
   wrap.appendChild(el);
-  setTimeout(() => {
+
+  const remove = () => {
     el.style.transition = "opacity 0.2s ease";
     el.style.opacity = "0";
     setTimeout(() => el.remove(), 200);
-  }, 2400);
+  };
+
+  if (action) {
+    el.querySelector(".toast-action").addEventListener("click", () => {
+      action.onClick();
+      remove();
+    });
+  }
+  setTimeout(remove, action ? 5000 : 2400);
+}
+
+/* ---------- Confirm dialog (replaces native confirm()) ---------- */
+function confirmDialog({ title, message, confirmLabel, danger }) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "overlay";
+    const close = (result) => {
+      overlay.remove();
+      document.removeEventListener("keydown", onKey);
+      resolve(result);
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape") close(false);
+      if (e.key === "Enter") close(true);
+    };
+    overlay.onclick = (e) => { if (e.target === overlay) close(false); };
+    overlay.innerHTML = `
+      <div class="modal" style="max-width:380px" onclick="event.stopPropagation()">
+        <div class="modal-body" style="padding-top:24px">
+          <h3 style="font-size:16px;font-weight:700;margin-bottom:8px">${escapeHtml(title)}</h3>
+          <p style="font-size:13px;color:var(--ink-muted);line-height:1.5">${escapeHtml(message)}</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" data-role="cancel">Cancel</button>
+          <button type="button" class="btn ${danger ? "btn-danger" : "btn-primary"}" data-role="confirm">${escapeHtml(confirmLabel || "Confirm")}</button>
+        </div>
+      </div>`;
+    overlay.querySelector('[data-role="cancel"]').onclick = () => close(false);
+    overlay.querySelector('[data-role="confirm"]').onclick = () => close(true);
+    document.body.appendChild(overlay);
+    document.addEventListener("keydown", onKey);
+    overlay.querySelector('[data-role="confirm"]').focus();
+  });
 }
 
 /* ---------- Theme ---------- */

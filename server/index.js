@@ -31,7 +31,7 @@ function save() {
 const app = express();
 app.use(express.json());
 
-const TASK_FIELDS = ["title", "description", "dueDate", "dueTime", "priority", "status"];
+const TASK_FIELDS = ["title", "description", "dueDate", "dueTime", "priority", "status", "checklist"];
 
 function findTaskOr404(req, res) {
   const task = tasks.find((t) => t.id === req.params.id);
@@ -60,6 +60,7 @@ app.post("/api/tasks", (req, res) => {
     dueTime: "",
     priority: "Medium",
     status: "Pending",
+    checklist: [],
     createdAt: now,
   };
   TASK_FIELDS.forEach((f) => {

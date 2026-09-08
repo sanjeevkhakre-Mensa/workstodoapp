@@ -7,12 +7,14 @@ const AppState = {
   search: "",
   priorityFilter: "all",
   statusFilter: "all",
+  sort: "dueDate",
 };
 
 function navigate(route) {
   AppState.route = ROUTE_TITLES[route] ? route : "dashboard";
   window.location.hash = "#/" + AppState.route;
   closeMobileSidebar();
+  closeTaskDrawer();
   renderApp();
   window.scrollTo(0, 0);
 }
@@ -43,9 +45,12 @@ function renderPageContent() {
       </div>
       <button class="btn btn-primary" onclick="openTaskModal()">${icon("plus")} Add Task</button>
     </div>
+    ${quickAddHtml()}
+    ${isDashboard ? todaysFocusHtml(tasks) : ""}
     ${isDashboard ? kpiRowHtml(tasks) : ""}
+    ${isDashboard ? `<h2 class="section-heading">All Tasks</h2>` : ""}
     ${toolbarHtml()}
-    ${taskListHtml(list)}
+    ${taskListHtml(list, AppState.route)}
   `;
 }
 
@@ -68,6 +73,8 @@ function renderSidebarActive() {
     const newSidebar = document.getElementById("sidebar");
     if (newSidebar) newSidebar.classList.add("open");
   }
+  const mobileNav = document.querySelector(".mobile-nav");
+  if (mobileNav) mobileNav.outerHTML = mobileNavHtml(AppState.route);
 }
 
 function renderApp() {
@@ -80,6 +87,7 @@ function renderApp() {
         <div class="content" id="pageContent">${renderPageContent()}</div>
       </div>
     </div>
+    ${mobileNavHtml(AppState.route)}
   `;
   const themeIcon = document.getElementById("themeToggleIcon");
   if (themeIcon) themeIcon.innerHTML = isDarkActive() ? icon("sun") : icon("moon");
@@ -90,14 +98,23 @@ function initFromHash() {
   if (ROUTE_TITLES[hash]) AppState.route = hash;
 }
 
+function loadingScreenHtml() {
+  return `
+    <div class="boot-screen">
+      <div class="boot-mark">W</div>
+      <div class="boot-spinner"></div>
+      <div class="boot-label">Loading your tasks…</div>
+    </div>`;
+}
+
 async function boot() {
   applyTheme();
   const root = document.getElementById("app");
-  root.innerHTML = `<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;color:var(--ink-faint);font-size:13px">Loading your tasks…</div>`;
+  root.innerHTML = loadingScreenHtml();
   try {
     await Store.load();
   } catch (e) {
-    root.innerHTML = `<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;text-align:center;color:var(--red);font-size:13.5px;font-weight:600">${escapeHtml(e.message || "Couldn't load tasks — is the server running?")}</div>`;
+    root.innerHTML = `<div class="boot-screen"><div class="boot-mark" style="background:var(--red)">!</div><div class="boot-label" style="color:var(--red);max-width:320px;text-align:center">${escapeHtml(e.message || "Couldn't load tasks — is the server running?")}</div></div>`;
     return;
   }
   initFromHash();
@@ -110,6 +127,7 @@ window.addEventListener("hashchange", () => {
   const hash = window.location.hash.replace("#/", "");
   if (ROUTE_TITLES[hash] && hash !== AppState.route) {
     AppState.route = hash;
+    closeTaskDrawer();
     renderApp();
   }
 });
