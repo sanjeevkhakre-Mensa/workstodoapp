@@ -59,7 +59,15 @@ function rerenderCurrentPage(skipTopScroll) {
 
 function renderSidebarActive() {
   const sidebar = document.getElementById("sidebar");
-  if (sidebar) sidebar.outerHTML = sidebarHtml(AppState.route, Store.getTasks());
+  if (!sidebar) return;
+  // Re-rendering replaces the whole element, so the mobile "open" state (a CSS class,
+  // not part of AppState) would otherwise be silently dropped on every task action.
+  const wasOpen = sidebar.classList.contains("open");
+  sidebar.outerHTML = sidebarHtml(AppState.route, Store.getTasks());
+  if (wasOpen) {
+    const newSidebar = document.getElementById("sidebar");
+    if (newSidebar) newSidebar.classList.add("open");
+  }
 }
 
 function renderApp() {

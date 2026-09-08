@@ -271,11 +271,14 @@ svg { display: block; }
   .sidebar.open { transform: translateX(0); }
   .main-col { grid-column: 1; }
   .hamburger { display: flex; }
-  .topbar-search { display: none; }
+  /* Search used to be display:none here, which removed it from mobile entirely with
+     no replacement — it now shrinks to fit alongside the hamburger and theme toggle. */
+  .topbar-search { max-width: none; }
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 640px) {
+  .topbar { padding: 0 14px; gap: 10px; }
   .content { padding: 16px 14px 40px; }
   .kpi-grid { gap: 10px; }
   .kpi-card { padding: 12px; }

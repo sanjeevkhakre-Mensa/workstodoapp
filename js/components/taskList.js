@@ -112,7 +112,7 @@ async function handleToggleComplete(id) {
   try {
     const task = await Store.toggleComplete(id);
     showToast(task.status === "Completed" ? "Task marked as completed" : "Task moved back to pending", "success");
-    rerenderCurrentPage();
+    rerenderCurrentPage(true); // keep the user's scroll position — this can happen far down a long list
   } catch (e) {
     showToast(e.message || "Failed to update task", "error");
   }
@@ -123,7 +123,7 @@ async function handleDeleteTask(id) {
   try {
     await Store.deleteTask(id);
     showToast("Task deleted", "success");
-    rerenderCurrentPage();
+    rerenderCurrentPage(true); // keep the user's scroll position
   } catch (e) {
     showToast(e.message || "Failed to delete task", "error");
   }

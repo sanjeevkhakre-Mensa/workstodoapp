@@ -120,7 +120,7 @@ async function submitTaskModal(taskId) {
       showToast("Task added", "success");
     }
     closeTaskModal();
-    rerenderCurrentPage();
+    rerenderCurrentPage(true); // keep the user's scroll position instead of jumping to the top
   } catch (e) {
     showToast(e.message || "Failed to save task", "error");
     if (saveBtn) saveBtn.disabled = false;
